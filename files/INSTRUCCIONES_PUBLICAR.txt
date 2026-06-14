@@ -1,0 +1,85 @@
+=================================================================
+  STRATTON TRADEMARK COMPANY — GUÍA DE PUBLICACIÓN
+  strattonremodeling.com
+=================================================================
+
+ARCHIVOS EN ESTA CARPETA:
+✅ index.html         — Página web principal
+✅ netlify.toml       — Configuración de Netlify
+✅ robots.txt         — Para Google/buscadores
+✅ sitemap.xml        — Mapa del sitio para SEO
+
+=================================================================
+PASO 1 — PUBLICAR EN NETLIFY
+=================================================================
+1. Ve a https://netlify.com
+2. Sign up con tu email (usa info@strattonremodeling.com)
+3. En el dashboard clic en "Add new site" → "Deploy manually"
+4. SELECCIONA TODOS LOS ARCHIVOS de esta carpeta y arrástralos
+   (index.html + netlify.toml + robots.txt + sitemap.xml)
+5. Netlify te da un link temporal como: abc123.netlify.app ✅
+
+=================================================================
+PASO 2 — CONECTAR DOMINIO GODADDY
+=================================================================
+EN NETLIFY:
+1. Ve a Site Settings → Domain Management → Add custom domain
+2. Escribe: strattonremodeling.com → Verify → Add domain
+3. Netlify te mostrará sus nameservers. Anótalos:
+   - dns1.p05.nsone.net
+   - dns2.p05.nsone.net
+   - dns3.p05.nsone.net
+   - dns4.p05.nsone.net
+   (pueden variar — usa los que Netlify te indique)
+
+EN GODADDY:
+1. Ve a godaddy.com → My Products → strattonremodeling.com → DNS
+2. Scroll hasta "Nameservers" → clic "Change"
+3. Selecciona "Enter my own nameservers"
+4. Pega los nameservers de Netlify
+5. Guarda → espera 1-24 horas
+
+=================================================================
+PASO 3 — HTTPS/SSL (AUTOMÁTICO EN NETLIFY)
+=================================================================
+1. En Netlify → Site Settings → Domain Management
+2. Scroll hasta "HTTPS" → clic "Verify DNS configuration"
+3. Luego "Provision certificate" → LISTO ✅
+   (Netlify provee SSL gratis con Let's Encrypt)
+
+=================================================================
+PASO 4 — GOOGLE SEARCH CONSOLE
+=================================================================
+1. Ve a https://search.google.com/search-console
+2. Clic "Add property" → escribe: https://www.strattonremodeling.com
+3. Elige verificación por "HTML tag"
+4. Copia el meta tag que te dan (algo así):
+   <meta name="google-site-verification" content="XXXXXXX">
+5. Díselo a Claude para agregarlo al index.html
+6. Vuelve a subir el archivo a Netlify
+7. En Search Console clic "Verify" ✅
+8. Envía el sitemap: https://www.strattonremodeling.com/sitemap.xml
+
+=================================================================
+PASO 5 — GOOGLE ANALYTICS
+=================================================================
+1. Ve a https://analytics.google.com
+2. Crea cuenta → nombre: "Stratton Trademark Company"
+3. Crea propiedad → nombre: strattonremodeling.com
+4. Copia tu Measurement ID (formato: G-XXXXXXXXXX)
+5. Díselo a Claude para agregarlo al index.html
+
+=================================================================
+PASO 6 — FORMULARIO DE CONTACTO (NETLIFY FORMS)
+=================================================================
+Los formularios ya están configurados para Netlify Forms ✅
+Cuando alguien envíe un mensaje:
+1. En Netlify → Forms → verás todos los leads
+2. Para recibir emails: Netlify → Forms → Notifications
+   → Add notification → Email → escribe tu email
+   → Guarda ✅
+
+=================================================================
+LEADS LLEGARÁN A:
+Netlify Dashboard → Forms → "contact" y "quote"
+=================================================================

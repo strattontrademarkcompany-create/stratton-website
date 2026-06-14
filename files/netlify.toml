@@ -1,0 +1,41 @@
+# ============================================================
+# NETLIFY CONFIGURATION — Stratton Trademark Company
+# ============================================================
+
+[build]
+  publish = "."
+
+# REDIRECTS & HTTPS
+[[redirects]]
+  from = "http://strattonremodeling.com/*"
+  to = "https://www.strattonremodeling.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.strattonremodeling.com/*"
+  to = "https://www.strattonremodeling.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://strattonremodeling.com/*"
+  to = "https://www.strattonremodeling.com/:splat"
+  status = 301
+  force = true
+
+# SECURITY HEADERS
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# CACHE STATIC ASSETS
+[[headers]]
+  for = "*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
