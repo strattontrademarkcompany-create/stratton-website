@@ -1,0 +1,13 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Maria Gutierrez
+N:Gutierrez;Maria;;;
+ORG:Stratton Trademark Company
+TITLE:Co-Owner / Client Relations
+TEL;TYPE=CELL,VOICE:(786) 966-8555
+TEL;TYPE=WORK,VOICE:(754) 610-9177
+EMAIL;TYPE=WORK:info@strattonremodeling.com
+URL:https://www.strattonremodeling.com
+ADR;TYPE=WORK:;;Miami;FL;;USA
+NOTE:Remodel · Renovate · Reimagine · Miami, FL · Licensed & Insured
+END:VCARD
