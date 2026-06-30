@@ -59,7 +59,7 @@ exports.handler = async (event) => {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-3-haiku-20240307",
         max_tokens: 400,
         system: SYSTEM_PROMPT,
         messages: messages
@@ -67,6 +67,12 @@ exports.handler = async (event) => {
     });
 
     const data = await response.json();
+    console.log("Anthropic response status:", response.status);
+    console.log("Anthropic data:", JSON.stringify(data));
+    if (data.error) {
+      console.error("Anthropic API error:", data.error);
+      return { statusCode: 200, headers, body: JSON.stringify({ reply: "Lo siento, estoy teniendo problemas técnicos. Por favor llama al (786) 966-8555 o escribe a info@strattonremodeling.com" }) };
+    }
     const replyText = data.content?.[0]?.text || "I'm sorry, I couldn't process that. Please call us at (786) 966-8555.";
 
     // Extract lead data if present
