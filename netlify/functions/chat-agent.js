@@ -1,5 +1,89 @@
+const crypto = require("crypto");
+
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN;
+const CALENDLY_TOKEN = process.env.CALENDLY_TOKEN;
+const CALENDLY_EVENT_TYPE = "https://api.calendly.com/event_types/144a3725-0f05-40f5-bc4c-5a6aa3230de5";
+const CALENDLY_FALLBACK_URL = "https://calendly.com/strattontrademarkcompany/free-home-estimate-stratton-remodeling";
+
+const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+const GOOGLE_PRIVATE_KEY = (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+const GOOGLE_CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || "primary";
+const VISIT_DURATION_MINUTES = 60;
+
+function base64url(input) {
+  return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function getGoogleAccessToken() {
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const claim = {
+    iss: GOOGLE_CLIENT_EMAIL,
+    scope: "https://www.googleapis.com/auth/calendar",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  };
+  const unsigned = base64url(JSON.stringify(header)) + "." + base64url(JSON.stringify(claim));
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(unsigned);
+  signer.end();
+  const signature = signer.sign(GOOGLE_PRIVATE_KEY).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const jwt = unsigned + "." + signature;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=" + encodeURIComponent("urn:ietf:params:oauth:grant-type:jwt-bearer") + "&assertion=" + jwt
+  });
+  const data = await res.json();
+  if (!data.access_token) throw new Error("Google auth failed: " + JSON.stringify(data));
+  return data.access_token;
+}
+
+async function isSlotBusy(accessToken, startISO, endISO) {
+  const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ timeMin: startISO, timeMax: endISO, timeZone: "America/New_York", items: [{ id: GOOGLE_CALENDAR_ID }] })
+  });
+  const data = await res.json();
+  const busy = data.calendars && data.calendars[GOOGLE_CALENDAR_ID] && data.calendars[GOOGLE_CALENDAR_ID].busy;
+  return !!(busy && busy.length > 0);
+}
+
+async function createCalendarEvent(accessToken, { summary, description, date, time, attendeeEmail }) {
+  const startDateTime = `${date}T${time}:00`;
+  const [h, m] = time.split(":").map(Number);
+  const endH = String(Math.floor((h * 60 + m + VISIT_DURATION_MINUTES) / 60)).padStart(2, "0");
+  const endM = String((h * 60 + m + VISIT_DURATION_MINUTES) % 60).padStart(2, "0");
+  const endDateTime = `${date}T${endH}:${endM}:00`;
+
+  const startISO = `${startDateTime}-04:00`;
+  const endISO = `${endDateTime}-04:00`;
+
+  const busy = await isSlotBusy(accessToken, startISO, endISO);
+  if (busy) return { booked: false };
+
+  const attendees = [{ email: GOOGLE_CALENDAR_ID }];
+  if (attendeeEmail) attendees.push({ email: attendeeEmail });
+
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GOOGLE_CALENDAR_ID)}/events?sendUpdates=all`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary,
+      description,
+      start: { dateTime: startDateTime, timeZone: "America/New_York" },
+      end: { dateTime: endDateTime, timeZone: "America/New_York" },
+      attendees
+    })
+  });
+  const data = await res.json();
+  if (!data.id) throw new Error("Google event creation failed: " + JSON.stringify(data));
+  return { booked: true, htmlLink: data.htmlLink };
+}
 
 const SYSTEM_PROMPT = `You are Sofia, a friendly and professional AI assistant for Stratton Trademark Company, a premier remodeling contractor in Miami, FL. You speak both English and Spanish — respond in whichever language the user writes in.
 
@@ -44,14 +128,15 @@ Before jumping to scheduling, have a real design conversation so the client star
 - Ask if they have a style in mind (modern, classic, farmhouse, minimalist, etc.)
 - Ask what type of cabinets they're picturing (shaker, flat-panel, glass-front, etc.) and what color/finish
 - Ask about countertop material preference if relevant (quartz, granite, marble-look)
-Let them dream a little — be encouraging and paint a picture of how good it could look. Once they've shared their vision, transition naturally to: "The best next step is for our team to come measure your space in person. Could you share your exact address so we can schedule that visit? That way we can bring material and color samples and put together a rough design idea right there with you."
-3. Once you have name + phone/email + address, tell them a team member will contact them within 24 hours to confirm the visit
-4. Always offer the scheduling link as well — share this link: https://calendly.com/strattontrademarkcompany
-5. Be conversational, not robotic. Use the client's name once you know it. Make them feel excited about their project, not interrogated.
+Let them dream a little — be encouraging and paint a picture of how good it could look. Once they've shared their vision, transition naturally to: "The best next step is for our team to come measure your space in person. Could you share your exact address so we can schedule that visit?"
+3. Once you have the address, ask what day and time works best for them for the in-home visit (business hours: Monday–Friday, 9 AM to 5 PM, Eastern Time). Get a specific date and time — if they're vague ("sometime next week"), ask them to pick a specific day and hour.
+4. Once you have name + phone/email + address + a specific date/time, say a team member will confirm shortly and the visit is being scheduled. Do NOT say the visit is 100% confirmed yet — the system will verify the slot is available.
+5. If they'd rather pick their own time on a calendar instead of telling you a time, share this exact placeholder text (do not modify it): [CALENDLY_LINK]
+6. Be conversational, not robotic. Use the client's name once you know it. Make them feel excited about their project, not interrogated.
 
 LEAD CAPTURE: When you have collected name + phone OR email + service interest, include this EXACT JSON at the END of your message (invisible to user styling-wise):
-[LEAD:{"name":"...","phone":"...","email":"...","service":"...","address":"...","style_notes":"..."}]
-Include "address" once they share it (for the measurement visit), and "style_notes" with a short summary of their design preferences (style, cabinet type, color, countertop) once discussed. Leave a field empty string "" if not yet known — update the JSON again later in the conversation as you learn more.
+[LEAD:{"name":"...","phone":"...","email":"...","service":"...","address":"...","style_notes":"...","preferred_date":"...","preferred_time":"..."}]
+Include "address" once they share it (for the measurement visit), "style_notes" with a short summary of their design preferences (style, cabinet type, color, countertop) once discussed, "preferred_date" in YYYY-MM-DD format once they give you a specific day (assume the current year is 2026 unless they say otherwise), and "preferred_time" in 24-hour HH:MM format (Eastern Time) once they give you a specific time. Leave a field empty string "" if not yet known — update the JSON again later in the conversation as you learn more.
 
 Keep responses concise — 2-4 sentences max. Be warm, confident, and helpful.`;
 
@@ -96,9 +181,13 @@ exports.handler = async (event) => {
     const leadMatch = replyText.match(/\[LEAD:(\{.*?\})\]/s);
     let leadSaved = false;
 
-    if (leadMatch && HUBSPOT_TOKEN) {
+    let lead = null;
+    if (leadMatch) {
+      try { lead = JSON.parse(leadMatch[1]); } catch (e) { console.error("Lead parse error:", e); }
+    }
+
+    if (lead && HUBSPOT_TOKEN) {
       try {
-        const lead = JSON.parse(leadMatch[1]);
         const nameParts = (lead.name || "").split(" ");
         await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
           method: "POST",
@@ -123,7 +212,65 @@ exports.handler = async (event) => {
     }
 
     // Clean reply — remove the LEAD tag before sending to user
-    const cleanReply = replyText.replace(/\[LEAD:\{.*?\}\]/s, "").trim();
+    let cleanReply = replyText.replace(/\[LEAD:\{.*?\}\]/s, "").trim();
+
+    // If we have a specific date/time, try to book it directly on Google Calendar
+    let bookingOutcome = null;
+    if (lead && lead.preferred_date && lead.preferred_time && GOOGLE_CLIENT_EMAIL && GOOGLE_PRIVATE_KEY) {
+      try {
+        const accessToken = await getGoogleAccessToken();
+        const result = await createCalendarEvent(accessToken, {
+          summary: `Free Home Estimate — ${lead.name || "Stratton Lead"}`,
+          description: `Service: ${lead.service || "N/A"}\nAddress: ${lead.address || "N/A"}\nPhone: ${lead.phone || "N/A"}\nNotes: ${lead.style_notes || "N/A"}`,
+          date: lead.preferred_date,
+          time: lead.preferred_time,
+          attendeeEmail: lead.email || null
+        });
+        bookingOutcome = result.booked ? "booked" : "busy";
+      } catch (e) {
+        console.error("Google Calendar error:", e);
+      }
+    }
+
+    if (bookingOutcome === "booked") {
+      cleanReply += (cleanReply.endsWith(".") || cleanReply.endsWith("!") ? " " : ". ") +
+        (/[áéíóúñ¿¡]/i.test(cleanReply) || /\b(el|la|los|las|de|que|para)\b/i.test(cleanReply)
+          ? `✅ ¡Listo! Tu visita quedó agendada para el ${lead.preferred_date} a las ${lead.preferred_time}. Recibirás una invitación de Google Calendar.`
+          : `✅ You're all set! Your visit is confirmed for ${lead.preferred_date} at ${lead.preferred_time}. You'll receive a Google Calendar invite shortly.`);
+    } else if (bookingOutcome === "busy") {
+      let calendlyUrl = CALENDLY_FALLBACK_URL;
+      if (CALENDLY_TOKEN) {
+        try {
+          const linkRes = await fetch("https://api.calendly.com/scheduling_links", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${CALENDLY_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ max_event_count: 1, owner: CALENDLY_EVENT_TYPE, owner_type: "EventType" })
+          });
+          const linkData = await linkRes.json();
+          if (linkData.resource && linkData.resource.booking_url) calendlyUrl = linkData.resource.booking_url;
+        } catch (e) { console.error("Calendly fallback error:", e); }
+      }
+      cleanReply += (/[áéíóúñ¿¡]/i.test(cleanReply) ? ` Ese horario ya está ocupado — por favor elige otro disponible aquí: ${calendlyUrl}` : ` That time slot is already booked — please pick another available time here: ${calendlyUrl}`);
+    }
+
+    // Replace the Calendly placeholder with a real single-use scheduling link
+    if (cleanReply.indexOf("[CALENDLY_LINK]") !== -1) {
+      let calendlyUrl = CALENDLY_FALLBACK_URL;
+      if (CALENDLY_TOKEN) {
+        try {
+          const linkRes = await fetch("https://api.calendly.com/scheduling_links", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${CALENDLY_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ max_event_count: 1, owner: CALENDLY_EVENT_TYPE, owner_type: "EventType" })
+          });
+          const linkData = await linkRes.json();
+          if (linkData.resource && linkData.resource.booking_url) {
+            calendlyUrl = linkData.resource.booking_url;
+          }
+        } catch (e) { console.error("Calendly error:", e); }
+      }
+      cleanReply = cleanReply.split("[CALENDLY_LINK]").join(calendlyUrl);
+    }
 
     return {
       statusCode: 200,
