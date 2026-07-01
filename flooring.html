@@ -85,6 +85,23 @@ section{padding:4rem 2rem;max-width:1100px;margin:0 auto}
 .info-list.include li::before{content:'✔';color:var(--gold);flex-shrink:0}
 .info-list.exclude li::before{content:'✗';color:#e88;flex-shrink:0}
 
+/* GALLERY */
+.gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem}
+@media(max-width:640px){.gallery-grid{grid-template-columns:1fr}}
+.gallery-item{border-radius:12px;overflow:hidden;border:1px solid rgba(200,169,110,0.15);cursor:pointer;position:relative}
+.gallery-item img{width:100%;height:280px;object-fit:cover;display:block;transition:transform 0.4s}
+.gallery-item:hover img{transform:scale(1.04)}
+.gallery-item::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.3),transparent);pointer-events:none}
+
+/* LIGHTBOX */
+.lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;padding:1rem}
+.lb.open{display:flex}
+.lb img{max-width:90vw;max-height:88vh;border-radius:12px;border:1px solid rgba(200,169,110,0.3);box-shadow:0 0 60px rgba(0,0,0,0.8)}
+.lb-close{position:fixed;top:1.2rem;right:1.5rem;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;line-height:1}
+.lb-prev,.lb-next{position:fixed;top:50%;transform:translateY(-50%);background:rgba(200,169,110,0.2);border:1px solid rgba(200,169,110,0.4);color:var(--gold);font-size:1.5rem;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s}
+.lb-prev{left:1rem}.lb-next{right:1rem}
+.lb-prev:hover,.lb-next:hover{background:rgba(200,169,110,0.4)}
+
 /* CTA */
 .cta-bar{background:linear-gradient(135deg,var(--dark2),var(--dark3));border:1px solid rgba(200,169,110,0.2);border-radius:16px;padding:3rem 2rem;text-align:center;margin:2rem auto 4rem;max-width:1100px}
 .cta-bar h2{font-family:'Playfair Display',serif;font-size:clamp(1.4rem,3vw,2rem);margin-bottom:0.8rem}
@@ -282,6 +299,32 @@ section{padding:4rem 2rem;max-width:1100px;margin:0 auto}
   </div>
 </section>
 
+<!-- GALLERY -->
+<section>
+  <p class="section-label">Our Work</p>
+  <h2 class="section-title">Flooring Gallery</h2>
+  <div class="section-line"></div>
+  <div class="gallery-grid">
+    <div class="gallery-item" onclick="openLb(0)">
+      <img src="./flooring-gallery-1.jpg" alt="Laminate flooring installation by Stratton Remodeling">
+    </div>
+    <div class="gallery-item" onclick="openLb(1)">
+      <img src="./flooring-gallery-2.jpg" alt="Porcelain tile installation by Stratton Remodeling">
+    </div>
+    <div class="gallery-item" onclick="openLb(2)">
+      <img src="./flooring-gallery-3.jpg" alt="Premium flooring installation Miami by Stratton Remodeling">
+    </div>
+  </div>
+</section>
+
+<!-- LIGHTBOX -->
+<div class="lb" id="lb" onclick="closeLb(event)">
+  <button class="lb-close" onclick="closeLb()">×</button>
+  <button class="lb-prev" onclick="lbNav(-1,event)">‹</button>
+  <img id="lb-img" src="" alt="">
+  <button class="lb-next" onclick="lbNav(1,event)">›</button>
+</div>
+
 <!-- CTA -->
 <div class="cta-bar">
   <h2>Ready to Transform Your Floors?</h2>
@@ -293,6 +336,13 @@ section{padding:4rem 2rem;max-width:1100px;margin:0 auto}
 </div>
 
 <script>
+var LB_IMGS = ['./flooring-gallery-1.jpg','./flooring-gallery-2.jpg','./flooring-gallery-3.jpg'];
+var lbIdx = 0;
+function openLb(i){ lbIdx=i; document.getElementById('lb-img').src=LB_IMGS[i]; document.getElementById('lb').classList.add('open'); document.body.style.overflow='hidden'; }
+function closeLb(e){ if(!e||e.target===document.getElementById('lb')||e.currentTarget===document.querySelector('.lb-close')){ document.getElementById('lb').classList.remove('open'); document.body.style.overflow=''; } }
+function lbNav(dir,e){ e.stopPropagation(); lbIdx=(lbIdx+dir+LB_IMGS.length)%LB_IMGS.length; document.getElementById('lb-img').src=LB_IMGS[lbIdx]; }
+document.addEventListener('keydown',function(e){ var lb=document.getElementById('lb'); if(!lb.classList.contains('open')) return; if(e.key==='Escape') closeLb(); if(e.key==='ArrowLeft') lbNav(-1,{stopPropagation:function(){}}); if(e.key==='ArrowRight') lbNav(1,{stopPropagation:function(){}}); });
+
 var RATES = {
   laminate: {
     good:    {matLo:3.00,matHi:3.99,instLo:2.50,instHi:3.50},
